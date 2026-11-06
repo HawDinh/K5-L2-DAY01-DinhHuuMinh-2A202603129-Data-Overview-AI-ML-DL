@@ -12,7 +12,7 @@
 
 **Thay đổi so với notebook nguồn:** Không thay đổi checkpoint, taxonomy, threshold hay mã dự đoán. Có chạy thêm cell để đóng gói và tải bản sao `day1_lab_outputs/` về máy phục vụ viết báo cáo; không thay đổi nội dung các file bằng chứng.
 
-> **Nguồn bằng chứng:** Các file JSON, PNG và `IMAGE_ATTRIBUTION.md` trong `day1_lab_outputs/` do notebook xuất ra. Đây là **prediction** từ checkpoint đã huấn luyện sẵn, không phải ground truth.
+> **Nguồn bằng chứng:** Các file JSON, PNG và `IMAGE_ATTRIBUTION.md` trong `day1_lab_outputs/` do notebook xuất ra. Ba ảnh COCO có `sample_id`/`coco_image_id`: `traffic`/`210273`, `kitchen`/`397133`, `dining`/`166918`; checksum ảnh đã được notebook kiểm tra `PASS` ở cell tải dữ liệu. Đây là **prediction** từ checkpoint đã huấn luyện sẵn, không phải ground truth.
 
 ### Từ cần nhớ
 
@@ -54,7 +54,7 @@
 
 5. **Quy tắc vẽ box đề xuất:** Mỗi vật thể hợp lệ phải có **một box chữ nhật khít với phần nhìn thấy của vật thể**, theo tọa độ pixel `xyxy`; không gom nhiều đối tượng riêng thành một box, không vượt biên ảnh và không tự mở rộng box để đoán phần bị che nếu guideline chỉ yêu cầu phần nhìn thấy. Khi gặp trường hợp che khuất, cần dùng cùng một chính sách nhất quán cho cả tập dữ liệu.
 
-6. Trong ảnh `kitchen`, **một phần người ở mép trái ảnh bị cắt khỏi khung hình** (có prediction `person` nhỏ/không trọn người ở phía trái, cạnh các bát và quầy bếp; xem `detection_predictions.png`). Tôi đề xuất **viết thành guideline chung**: cho phép gán nhãn vật thể bị cắt mép nếu phần nhìn thấy vẫn đủ xác định lớp, vẽ box khít phần trong ảnh và không suy đoán phần ngoài khung. Nếu dự án yêu cầu box toàn thân/amodal box hoặc có ngưỡng diện tích hiển thị nhưng chưa quy định, phải **escalate cho Lab Coach** trước khi áp dụng.
+6. Ở mép trái ảnh `kitchen`, mô hình dự đoán `person` với `score=0.610931` và `bbox_xyxy=[0.12,263.18,61.55,310.78]`, nhưng hình chỉ cho thấy một phần bàn tay/cánh tay; không thể xem đây là ground truth về một người đầy đủ (nguồn: `detection_predictions.json`, `detection_predictions.png`). Tôi đề xuất **guideline chung**: chỉ gán box cho vật thể bị cắt mép khi phần nhìn thấy đủ để nhận diện theo tiêu chí đã quy định; box giới hạn trong ảnh và không suy đoán phần ngoài khung. Nếu guideline chưa xác định mức độ hiển thị tối thiểu hoặc cách xử lý trường hợp chỉ thấy một bộ phận cơ thể, phải **escalate cho Lab Coach** trước khi quyết định gán nhãn.
 
 ## 3. Phân đoạn theo từng đối tượng
 
@@ -75,7 +75,7 @@ Bài lab này chỉ quan sát prediction. Trong hệ thống sản xuất, có t
 | Tác vụ | Ground truth trông như thế nào? (đơn vị nhãn) | Lỗi hoặc chỗ khó quyết định bạn thấy trên ảnh/JSON | Annotator làm gì? | Reviewer xem gì? |
 | --- | --- | --- | --- | --- |
 | Phân loại ảnh | **Một class cho toàn ảnh** theo taxonomy và quy tắc chọn chủ đề chính. | Ảnh `traffic` có nhiều xe, nhưng top-1 dự đoán `cab` (`score=0.510915`); cần thống nhất ảnh nhiều đối tượng nên chọn lớp nào. Đây là **điểm mơ hồ**, chưa đủ căn cứ kết luận dự đoán sai. | Xem toàn ảnh, chọn một lớp theo mục tiêu/guideline; đánh dấu ca không rõ. | Đối chiếu lớp với nội dung ảnh, taxonomy và quy tắc ảnh nhiều chủ đề; không dựa riêng model score. |
-| Phát hiện vật thể | **Một cặp class + bounding box cho từng đối tượng** cần gán nhãn. | Ảnh `kitchen` có một phần người ở mép trái bị cắt; số prediction thay đổi `17 → 6` khi threshold tăng `0.20 → 0.60`. | Xác định từng vật thể hợp lệ, vẽ box khít theo chính sách cắt mép/che khuất. | Kiểm tra thiếu/thừa box, box trùng, nhầm class, kích thước và vị trí box, nhất là vùng cắt mép. |
+| Phát hiện vật thể | **Một cặp class + bounding box cho từng đối tượng** cần gán nhãn. | Ảnh `kitchen` có prediction `person` (`score=0.610931`) tại mép trái nhưng chỉ thấy một phần tay; cần quyết định liệu mức độ hiển thị này đủ để gán nhãn hay không. Số prediction thay đổi `17 → 6` khi threshold tăng `0.20 → 0.60`. | Xác định từng vật thể hợp lệ, vẽ box khít theo chính sách cắt mép/che khuất. | Kiểm tra thiếu/thừa box, box trùng, nhầm class, kích thước và vị trí box, nhất là vùng cắt mép. |
 | Instance segmentation | **Một class và mask/polygon riêng cho mỗi instance** (thường kèm box). | Biên `person` (`kitchen-001`) tiếp giáp các dụng cụ/nền bếp; model tạo polygon **348 điểm**, nhưng nhiều điểm không tự bảo đảm đường biên chính xác. | Vẽ mask theo biên phần nhìn thấy, tách riêng các instance; đánh dấu biên không rõ. | Kiểm tra mask ăn vào nền, thiếu vùng người, gộp nhầm đối tượng, biên che khuất và tính thống nhất với guideline. |
 
 ## 5. An toàn dữ liệu
